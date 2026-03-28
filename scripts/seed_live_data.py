@@ -237,34 +237,26 @@ async def seed():
 
                 print(f"  {name:<28} | {role.value:<4} | {credits} cr | {country}")
 
-        # === Contests ===
-        mega_breakdown = json.dumps([
-            {"rank": 1, "prize": 2000}, {"rank": 2, "prize": 1000},
-            {"rank_from": 3, "rank_to": 5, "prize": 500},
-            {"rank_from": 6, "rank_to": 10, "prize": 100},
-        ])
+        # === Contests (Pool System: 50% / 30% / 20% to top 3) ===
+        # Pool grows as people join: total_prize_pool = entry_fee × filled_spots
+        # Prize pool starts at 0 and updates on each join
         session.add(Contest(
             match_id=match.id, name="Mega Contest", type=ContestType.MEGA,
-            entry_fee=50, total_prize_pool=5000, max_spots=100,
-            max_teams_per_user=3, is_guaranteed=True,
-            prize_breakdown=mega_breakdown, winner_count=10, created_by_id=admin.id,
+            entry_fee=50, total_prize_pool=0, max_spots=100,
+            max_teams_per_user=3, is_guaranteed=False,
+            prize_breakdown=None, winner_count=3, created_by_id=admin.id,
         ))
         session.add(Contest(
             match_id=match.id, name="Head to Head", type=ContestType.HEAD_TO_HEAD,
-            entry_fee=100, total_prize_pool=200, max_spots=2,
+            entry_fee=100, total_prize_pool=0, max_spots=2,
             max_teams_per_user=1, is_guaranteed=False,
-            prize_breakdown=json.dumps([{"rank": 1, "prize": 200}]),
-            winner_count=1, created_by_id=admin.id,
+            prize_breakdown=None, winner_count=1, created_by_id=admin.id,
         ))
         session.add(Contest(
             match_id=match.id, name="Small League", type=ContestType.SMALL,
-            entry_fee=25, total_prize_pool=500, max_spots=20,
-            max_teams_per_user=2, is_guaranteed=True,
-            prize_breakdown=json.dumps([
-                {"rank": 1, "prize": 250}, {"rank": 2, "prize": 150},
-                {"rank": 3, "prize": 100},
-            ]),
-            winner_count=3, created_by_id=admin.id,
+            entry_fee=25, total_prize_pool=0, max_spots=20,
+            max_teams_per_user=2, is_guaranteed=False,
+            prize_breakdown=None, winner_count=3, created_by_id=admin.id,
         ))
 
         await session.commit()

@@ -1,6 +1,12 @@
-"""Contest join and prize distribution service."""
+"""Contest join and prize distribution service.
 
-import json
+Pool System:
+- Total pool = entry_fee × number of participants
+- 1st place: 50% of pool
+- 2nd place: 30% of pool
+- 3rd place: 20% of pool
+"""
+
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +22,13 @@ from src.db.models.models import (
     Match,
     Team,
 )
+
+# Prize distribution percentages
+PRIZE_SPLIT = {
+    1: 0.50,  # 1st place: 50%
+    2: 0.30,  # 2nd place: 30%
+    3: 0.20,  # 3rd place: 20%
+}
 
 
 async def join_contest(
@@ -49,11 +62,16 @@ async def join_contest(
     if dup:
         raise ConflictException("Team already in this contest")
 
+    # Deduct entry fee from wallet
     await wallet_service.deduct_entry_fee(session, user_id, contest.entry_fee, contest_id)
 
     entry = ContestEntry(contest_id=contest_id, user_id=user_id, team_id=team_id)
     session.add(entry)
     contest.filled_spots += 1
+
+    # Update the live pool amount (pool = entry_fee × participants)
+    contest.total_prize_pool = contest.entry_fee * contest.filled_spots
+
     if contest.filled_spots >= contest.max_spots:
         contest.status = ContestStatus.FULL
 
@@ -63,6 +81,7 @@ async def join_contest(
 
 
 async def distribute_prizes(session: AsyncSession, contest_id: int):
+    """Distribute prizes using pool system: 50% / 30% / 20% to top 3."""
     contest = (await session.execute(select(Contest).where(Contest.id == contest_id))).scalars().first()
     if not contest:
         raise NotFoundException("Contest not found")
@@ -73,32 +92,31 @@ async def distribute_prizes(session: AsyncSession, contest_id: int):
         .options(selectinload(ContestEntry.team))
     )).scalars().all())
 
+    if not entries:
+        contest.status = ContestStatus.COMPLETED
+        await session.commit()
+        return
+
+    # Sort by fantasy points (highest first)
     sorted_entries = sorted(entries, key=lambda e: e.team.total_points if e.team else 0, reverse=True)
 
-    breakdown = json.loads(contest.prize_breakdown) if contest.prize_breakdown else []
+    # Calculate pool: entry_fee × number of participants
+    pool = contest.entry_fee * len(sorted_entries)
+    contest.total_prize_pool = pool
 
+    # Assign ranks and distribute prizes (50% / 30% / 20%)
     for rank_idx, entry in enumerate(sorted_entries):
         entry.rank = rank_idx + 1
         entry.total_points = entry.team.total_points if entry.team else 0
 
-        prize_amount = 0.0
-        for tier in breakdown:
-            if "rank" in tier and tier["rank"] == entry.rank:
-                prize_amount = tier.get("prize", 0)
-                break
-            elif "rank_from" in tier and "rank_to" in tier:
-                if tier["rank_from"] <= entry.rank <= tier["rank_to"]:
-                    prize_amount = tier.get("prize", 0)
-                    break
+        # Prize for top 3
+        percentage = PRIZE_SPLIT.get(entry.rank, 0)
+        prize_amount = round(pool * percentage, 2)
 
         entry.prize = prize_amount
         if prize_amount > 0:
             await wallet_service.credit_winning(session, entry.user_id, prize_amount, contest_id)
 
-    # Create peer-to-peer settlement records
-    if contest.entry_fee > 0:
-        from src.api.services.settlement import create_peer_settlements
-        await create_peer_settlements(session, contest_id, contest.match_id)
-
+    contest.winner_count = min(3, len(sorted_entries))
     contest.status = ContestStatus.COMPLETED
     await session.commit()

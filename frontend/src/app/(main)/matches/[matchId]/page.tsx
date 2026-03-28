@@ -131,20 +131,29 @@ export default function MatchDetailPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-sm mb-2">
+              {/* Pool System Info */}
+              <div className="flex items-center justify-between text-sm mb-1">
                 <div>
-                  <p className="text-[#9E9E9E] text-xs">Prize Pool</p>
-                  <p className="font-bold text-[#00C853]">₹{c.total_prize_pool}</p>
+                  <p className="text-[#9E9E9E] text-xs">Pool</p>
+                  <p className="font-bold text-[#00C853]">₹{c.entry_fee * c.filled_spots}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-[#9E9E9E] text-xs">Entry</p>
+                  <p className="text-[#9E9E9E] text-xs">Entry Fee</p>
                   <p className="font-bold">₹{c.entry_fee}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[#9E9E9E] text-xs">Winners</p>
-                  <p className="font-bold">{c.winner_count}</p>
+                  <p className="text-[#9E9E9E] text-xs">Top 3 Win</p>
+                  <p className="font-bold text-[#FFD600]">50/30/20%</p>
                 </div>
               </div>
+              {/* Estimated prizes */}
+              {c.filled_spots > 0 && (
+                <div className="flex justify-between text-[10px] text-[#666666] mb-2 px-1">
+                  <span>1st: ₹{Math.round(c.entry_fee * c.filled_spots * 0.5)}</span>
+                  <span>2nd: ₹{Math.round(c.entry_fee * c.filled_spots * 0.3)}</span>
+                  <span>3rd: ₹{Math.round(c.entry_fee * c.filled_spots * 0.2)}</span>
+                </div>
+              )}
 
               {/* Spots progress */}
               <div className="mb-3">
