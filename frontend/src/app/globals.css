@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dream11 Design System CSS Variables */
+:root {
+  /* Backgrounds */
+  --color-bg-primary: #1A1A2E;
+  --color-bg-secondary: #16213E;
+  --color-bg-card: #0F3460;
+  --color-bg-elevated: #1B2845;
+
+  /* Accent */
+  --color-accent-red: #E94560;
+  --color-accent-red-hover: #D13550;
+
+  /* Status */
+  --color-success: #00C853;
+  --color-warning: #FFD600;
+  --color-info: #2196F3;
+
+  /* Text */
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #9E9E9E;
+  --color-text-muted: #666666;
+
+  /* Border */
+  --color-border: #2A2A4A;
+  --color-border-strong: #3A3A5A;
+
+  /* Player roles */
+  --color-role-wk: #FF6B6B;
+  --color-role-bat: #4ECDC4;
+  --color-role-ar: #45B7D1;
+  --color-role-bowl: #96CEB4;
+
+  /* Radius */
+  --radius-card: 12px;
+  --radius-button: 8px;
+  --radius-pill: 20px;
+}
+
+/* Global base styles */
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Safe area handling for mobile */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}

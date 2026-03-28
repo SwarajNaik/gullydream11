@@ -1,0 +1,29 @@
+{
+  "name": "gullydream11",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "./scripts/run-frontend.sh",
+    "dev:backend": "./scripts/run-backend.sh",
+    "db:migrate": "./scripts/run-db-migration.sh migrate",
+    "db:status": "./scripts/run-db-migration.sh status",
+    "db:reset": "./scripts/run-db-migration.sh reset",
+    "generate-spec": "uv run python scripts/export-openapi.py",
+    "generate-types": "npm run generate-spec && cd frontend && npm run generate-types",
+    "build": "cd frontend && npm run build",
+    "start": "concurrently \"npm run dev:backend\" \"npm run start:frontend\"",
+    "start:frontend": "cd frontend && npm run start",
+    "install:all": "cd frontend && npm install && cd .. && uv sync",
+    "setup": "./scripts/setup-hooks.sh",
+    "test": "uv run pytest",
+    "lint": "concurrently \"uv run ruff check src\" \"cd frontend && npm run lint\"",
+    "lint:fix": "uv run ruff check src --fix && cd frontend && npm run lint:fix",
+    "format": "uv run ruff format src",
+    "check": "uv run ruff check src && cd frontend && npm run check",
+    "clean": "rm -rf frontend/.next frontend/node_modules .venv __pycache__"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

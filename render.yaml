@@ -1,0 +1,29 @@
+# Render Blueprint — deploy backend as a free web service
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: gullydream11-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "10080"
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: DEBUG
+        value: "false"
+      - key: API_HOST
+        value: "0.0.0.0"
+      - key: API_PORT
+        value: "8000"
+    healthCheckPath: /health
