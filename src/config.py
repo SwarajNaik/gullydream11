@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -30,8 +31,29 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "GullyDream11"
 
+    # Production Configuration
+    FRONTEND_URL: str = "http://localhost:3000"
+    ENVIRONMENT: str = "development"  # development, staging, production
+    SENTRY_DSN: str = ""
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "text"  # text for dev, json for production
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        """Enforce security constraints in production."""
+        if self.ENVIRONMENT == "production":
+            if self.JWT_SECRET_KEY == "your-secret-key-change-in-production":
+                raise ValueError(
+                    "JWT_SECRET_KEY must not be the default value in production"
+                )
+            if self.DEBUG is True:
+                raise ValueError("DEBUG must be False in production")
+            if "localhost" in self.FRONTEND_URL:
+                raise ValueError("FRONTEND_URL must not contain 'localhost' in production")
+        return self
+
     model_config = {
-        "env_file": "/Users/swarajnaik/Desktop/11/.env",
+        "env_file": ".env",
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }

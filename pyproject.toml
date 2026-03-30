@@ -29,6 +29,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "email-validator>=2.3.0",
     "bcrypt>=5.0.0",
+    # Production: rate limiting & error tracking
+    "slowapi>=0.1.9",
+    "sentry-sdk[fastapi]>=2.0.0",
 ]
 
 [project.optional-dependencies]

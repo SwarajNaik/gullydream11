@@ -1,0 +1,45 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend to Render
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Deploy
+        run: |
+          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            curl -sf "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" || echo "Render deploy hook not configured yet"
+          else
+            echo "RENDER_DEPLOY_HOOK_URL secret not set — skipping deploy trigger"
+            echo "Render auto-deploys from main if GitHub integration is connected"
+          fi
+
+  verify-backend:
+    name: Verify Backend Health
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    if: ${{ vars.BACKEND_URL != '' }}
+    steps:
+      - name: Wait for deployment
+        run: sleep 120
+      - name: Health check
+        run: |
+          for i in $(seq 1 10); do
+            if curl -sf "${{ vars.BACKEND_URL }}/health"; then
+              echo ""
+              echo "Backend is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i/10 failed, retrying in 30s..."
+            sleep 30
+          done
+          echo "Backend health check failed after 10 attempts"
+          exit 1

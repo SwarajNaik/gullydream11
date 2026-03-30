@@ -1,0 +1,20 @@
+name: Docker Build Test
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - pyproject.toml
+      - uv.lock
+      - "src/**"
+
+jobs:
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t gullydream11-test .
+      - name: Verify image
+        run: docker image inspect gullydream11-test --format '{{.Size}}' | awk '{printf "Image size: %.1f MB\n", $1/1048576}'

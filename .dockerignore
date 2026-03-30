@@ -5,3 +5,15 @@ node_modules
 __pycache__
 *.pyc
 .env
+.env.*
+frontend/
+.ruff_cache
+.pytest_cache
+.mypy_cache
+*.md
+.claude/
+scripts/seed_data.py
+scripts/seed_live_data.py
+scripts/update_player_images.py
+tests/
+.github/

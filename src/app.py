@@ -1,16 +1,48 @@
+import logging
 import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from sqlalchemy import text
 
 from src.config import settings
+from src.logging_config import request_id_ctx, setup_logging
+
+logger = logging.getLogger(__name__)
+
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup application resources."""
-    # Startup: initialize DB and Redis connections
+    # Structured logging
+    setup_logging()
+
+    logger.info("Starting %s...", settings.APP_NAME)
+
+    # Sentry error tracking
+    if settings.SENTRY_DSN:
+        try:
+            import sentry_sdk
+
+            sentry_sdk.init(
+                dsn=settings.SENTRY_DSN,
+                environment=settings.ENVIRONMENT,
+                traces_sample_rate=0.1,
+            )
+            logger.info("Sentry initialized for environment: %s", settings.ENVIRONMENT)
+        except Exception:
+            logger.exception("Failed to initialize Sentry")
+
+    # Initialize DB and Redis
     from src.db.redis import init_redis
     from src.db.session import init_db
 
@@ -19,16 +51,18 @@ async def lifespan(app: FastAPI):
 
     # Start background scheduler for live data sync
     from src.api.services.scheduler import start_scheduler
+
     start_scheduler()
 
     yield
 
-    # Shutdown: cleanup
+    # Shutdown
     from src.api.services.scheduler import stop_scheduler
     from src.db.redis import close_redis
 
     stop_scheduler()
     await close_redis()
+    logger.info("Shutdown complete")
 
 
 app = FastAPI(
@@ -40,41 +74,119 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# Rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ---------------------------------------------------------------------------
+# CORS — must be first middleware
+# ---------------------------------------------------------------------------
+cors_origins: list[str] = [settings.FRONTEND_URL]
+if settings.DEBUG:
+    cors_origins.extend(
+        [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:8000",
+        ]
+    )
+# Deduplicate while preserving order
+cors_origins = list(dict.fromkeys(cors_origins))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        settings.API_BASE_URL,
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 
 
-# Request timing middleware
+# ---------------------------------------------------------------------------
+# Security headers middleware
+# ---------------------------------------------------------------------------
 @app.middleware("http")
-async def add_request_timing(request: Request, call_next):
-    start_time = time.time()
+async def security_headers_middleware(request: Request, call_next):
     response: Response = await call_next(request)
-    process_time = time.time() - start_time
-    response.headers["X-Process-Time"] = str(round(process_time * 1000, 2))
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
 
+# ---------------------------------------------------------------------------
+# Request ID middleware
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    rid = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    token = request_id_ctx.set(rid)
+    try:
+        response: Response = await call_next(request)
+        response.headers["X-Request-ID"] = rid
+        return response
+    finally:
+        request_id_ctx.reset(token)
+
+
+# ---------------------------------------------------------------------------
+# Request timing middleware
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def request_timing_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response: Response = await call_next(request)
+    elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+    response.headers["X-Response-Time"] = f"{elapsed_ms}ms"
+    return response
+
+
+# ---------------------------------------------------------------------------
 # Health probes
+# ---------------------------------------------------------------------------
 @app.get("/health")
 async def health():
+    """Liveness probe — always returns 200 if the process is alive."""
     return {"status": "healthy"}
 
 
 @app.get("/ready")
 async def ready():
-    return {"status": "ready"}
+    """Readiness probe — checks DB and Redis connectivity."""
+    from src.db.redis import get_redis
+    from src.db.session import async_session
+
+    checks: dict[str, str] = {}
+
+    # Database check
+    try:
+        async with async_session() as session:
+            await session.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as exc:
+        logger.error("Readiness: database check failed: %s", exc)
+        checks["database"] = f"error: {exc}"
+
+    # Redis check
+    try:
+        redis = await get_redis()
+        await redis.ping()
+        checks["redis"] = "ok"
+    except Exception as exc:
+        logger.error("Readiness: redis check failed: %s", exc)
+        checks["redis"] = f"error: {exc}"
+
+    all_ok = all(v == "ok" for v in checks.values())
+    return JSONResponse(
+        status_code=200 if all_ok else 503,
+        content={"status": "ready" if all_ok else "degraded", "checks": checks},
+    )
 
 
+# ---------------------------------------------------------------------------
 # Register API routes
+# ---------------------------------------------------------------------------
 from src.api.routes import (
     admin,
     auth,

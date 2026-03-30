@@ -7,6 +7,7 @@ services:
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
+    preDeployCommand: "alembic upgrade head"
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -26,4 +27,20 @@ services:
         value: "0.0.0.0"
       - key: API_PORT
         value: "8000"
+      - key: API_BASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: ENVIRONMENT
+        value: "production"
+      - key: LOG_FORMAT
+        value: "json"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: CRICKET_API_KEY
+        sync: false
+      - key: CRICKET_API_URL
+        value: "https://api.cricapi.com/v1"
     healthCheckPath: /health
